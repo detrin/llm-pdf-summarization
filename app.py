@@ -1,79 +1,83 @@
+import os
+from typing import Optional, Tuple
+
 import gradio as gr
-from langchain_core.prompts import PromptTemplate
+from dotenv import load_dotenv
 from langchain.chains.summarize import load_summarize_chain
+from langchain_core.prompts import PromptTemplate
+from langchain_community.callbacks import get_openai_callback
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import ChatOpenAI
-from langchain_community.callbacks import get_openai_callback
-import os
-from dotenv import load_dotenv
+
 
 os.makedirs("data", exist_ok=True)
-
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
 
 
-def summarize_pdf(pdf_file, custom_prompt="", openai_api_key=None):
+def summarize_pdf(
+    pdf_file: bytes, custom_prompt: str = "", openai_api_key: Optional[str] = None
+) -> Tuple[str, str]:
     """
     Summarizes the content of a PDF file using a custom prompt.
 
     Args:
-        pdf_file (UploadedFile): The uploaded PDF file.
+        pdf_file (bytes): The uploaded PDF file as bytes.
         custom_prompt (str): The prompt for summarization.
-        openai_api_key (str, optional): User-provided OpenAI API key.
+        openai_api_key (Optional[str]): User-provided OpenAI API key.
 
     Returns:
-        tuple: Summary in markdown format and the cost in USD.
+        Tuple[str, str]: Summary in markdown format and the cost in USD.
     """
-    pdf_path = os.path.join("data", "tmp.pdf")
-    with open(pdf_path, "wb") as f:
-        f.write(pdf_file)
+    pdf_path: str = os.path.join("data", "tmp.pdf")
+    try:
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_file)
+    except IOError as e:
+        return f"Failed to write PDF file: {e}", "N/A"
 
-    api_key = openai_api_key if openai_api_key else OPENAI_API_KEY
+    api_key: Optional[str] = openai_api_key or OPENAI_API_KEY
 
     if not api_key:
         return "Error: No OpenAI API key provided.", "N/A"
 
-    with get_openai_callback() as cb:
+    with get_openai_callback() as callback:
         try:
             model = ChatOpenAI(
-                model="gpt-4o-mini", temperature=0, openai_api_key=api_key
+                model="gpt-4-mini",  # Verify the correct model name
+                temperature=0.0,
+                openai_api_key=api_key,
             )
 
             loader = PyPDFLoader(pdf_path)
-            docs = loader.load_and_split()
+            documents = loader.load_and_split()
 
-            if not custom_prompt.strip():
-                custom_prompt = default_prompt
+            prompt_text: str = custom_prompt.strip() or default_prompt
+            prompt_template: str = f"{prompt_text}\n\n{{text}}\n\nSUMMARY:"
+            prompt = PromptTemplate(template=prompt_template, input_variables=["text"])
 
-            prompt_template = (
-                custom_prompt
-                + """
-
-            {text}
-
-            SUMMARY:"""
+            summarize_chain = load_summarize_chain(
+                llm=model,
+                chain_type="map_reduce",
+                map_prompt=prompt,
+                combine_prompt=prompt,
             )
-            PROMPT = PromptTemplate(template=prompt_template, input_variables=["text"])
-            chain = load_summarize_chain(
-                model, chain_type="map_reduce", map_prompt=PROMPT, combine_prompt=PROMPT
-            )
-            summary = chain({"input_documents": docs}, return_only_outputs=True)[
-                "output_text"
-            ]
-            total_cost = cb.total_cost
+
+            chain_input = {"input_documents": documents}
+            result = summarize_chain(chain_input, return_only_outputs=True)
+            summary: str = result.get("output_text", "No summary generated.")
+            total_cost: float = callback.total_cost
 
             return summary, f"${total_cost:.4f}"
 
         except Exception as e:
-            return f"An error occurred: {str(e)}", "N/A"
+            return f"An error occurred during summarization: {str(e)}", "N/A"
 
 
-default_prompt = (
+default_prompt: str = (
     "Summarize this paper. Return markdown, keep it in a language that scientists understand, "
     "but the purpose is to highlight the key takeaways, so that we save time for the reader."
 )
-
 with gr.Blocks() as demo:
     gr.Markdown("# PDF Summarizer 📝")
     gr.Markdown(
@@ -82,18 +86,23 @@ with gr.Blocks() as demo:
 
     with gr.Row():
         with gr.Column():
+            api_key_label: str
+            placeholder_text: str
+
             if OPENAI_API_KEY is None:
-                api_key_input = gr.Textbox(
-                    label="OpenAI API Key",
-                    type="password",
-                    placeholder="Enter your OpenAI API key.",
-                )
+                api_key_label = "OpenAI API Key"
+                placeholder_text = "Enter your OpenAI API key."
             else:
-                api_key_input = gr.Textbox(
-                    label="OpenAI API Key (Optional)",
-                    type="password",
-                    placeholder="Enter your OpenAI API key if you want to override the global key.",
+                api_key_label = "OpenAI API Key (Optional)"
+                placeholder_text = (
+                    "Enter your OpenAI API key if you want to override the global key."
                 )
+
+            api_key_input = gr.Textbox(
+                label=api_key_label,
+                type="password",
+                placeholder=placeholder_text,
+            )
             prompt_input = gr.Textbox(
                 label="Custom Prompt",
                 lines=4,
