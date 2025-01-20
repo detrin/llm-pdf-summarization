@@ -169,3 +169,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+playground.ipynb
+1706.03762v7.pdf
+data/tmp.pdf

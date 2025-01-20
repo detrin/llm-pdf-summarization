@@ -1,0 +1,7 @@
+langchain
+gradio
+langchain-openai
+python-dotenv
+langchain-community
+langchain-core
+pypdf
