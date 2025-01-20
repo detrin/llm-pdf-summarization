@@ -18,6 +18,7 @@ graph LR
 ```
 uv venv --python=3.12
 source .venv/bin/activate
+uv pip install -r requirements.txt
 python app.py
 ```
 Now you can visit http://0.0.0.0:3000 and enjoy the app.
