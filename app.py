@@ -44,7 +44,7 @@ def summarize_pdf(
     with get_openai_callback() as callback:
         try:
             model = ChatOpenAI(
-                model="gpt-4-mini",  # Verify the correct model name
+                model="gpt-4o-mini",  # Verify the correct model name
                 temperature=0.0,
                 openai_api_key=api_key,
             )
