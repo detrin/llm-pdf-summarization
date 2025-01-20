@@ -127,7 +127,7 @@ with gr.Blocks() as demo:
     )
 
     gr.Markdown("---")
-    gr.Markdown("Created by [Daniel Herman](https://www.hermandaniel.com)")
+    gr.Markdown("Created by [Daniel Herman](https://www.hermandaniel.com), check out the code [detrin/llm-pdf-summarization](https://github.com/detrin/meme-generator).")
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=3000)
